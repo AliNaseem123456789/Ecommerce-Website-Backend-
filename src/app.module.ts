@@ -1,0 +1,16 @@
+import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { ProductsModule } from './products/products.module';
+import { SupabaseModule } from './supabase/supabase.module';
+import { CategoriesModule } from './categories/categories.module';
+import { AccountModule } from './account/account.module';
+import { AuthModule } from './auth/auth.module';
+import { CartModule } from './cart/cart.module';
+import { WishlistModule } from './wishlist/wishlist.module';
+@Module({
+  imports: [ProductsModule, SupabaseModule, CategoriesModule, AccountModule, AuthModule, CartModule, WishlistModule],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
