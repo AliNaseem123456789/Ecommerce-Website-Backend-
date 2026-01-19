@@ -1,6 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Param } from '@nestjs/common';
 import { ProductsService } from './products.service';
-
+import { BadRequestException } from '@nestjs/common';
 @Controller('api/v1/products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
@@ -21,5 +21,14 @@ export class ProductsController {
     @Query('sort') sort?: string,
   ) {
     return this.productsService.getProducts({ categories, sort });
+  }
+
+  @Get(':id')
+  async getProduct(@Param('id') id: string) {
+    const numericId = Number(id);
+    if (isNaN(numericId)) {
+      throw new BadRequestException('Invalid Product ID format');
+    }
+    return this.productsService.findOne(numericId);
   }
 }

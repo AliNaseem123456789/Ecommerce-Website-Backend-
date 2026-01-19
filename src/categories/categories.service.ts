@@ -12,4 +12,13 @@ export class CategoriesService {
     }
     return data;
   }
+  async findAll() {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data;
+  }
 }

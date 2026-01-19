@@ -65,4 +65,14 @@ export class ProductsService {
 
     return data;
   }
+  async findOne(id: number) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('product_id', id)
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  }
 }
