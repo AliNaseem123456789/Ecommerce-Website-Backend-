@@ -7,7 +7,7 @@ async function bootstrap() {
       'http://localhost:5173',
       'http://localhost:3000',
       'https://my-ecommerce-website-1w02w5xgi-ali-naseems-projects-305588ff.vercel.app',
-      'https://my-ecommerce-website-a533e1yid-ali-naseems-projects-305588ff.vercel.app',
+      'https://my-ecommerce-website-three.vercel.app/',
     ],
     credentials: true,
   });
