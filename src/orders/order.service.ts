@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { supabase } from '../supabase/supabase.client';
 
 @Injectable()
-export class OrderService {
+export class OrdersService {
   async getUserOrders(userId: string) {
     const { data, error } = await supabase
       .from('orders')
@@ -11,7 +11,7 @@ export class OrderService {
         order_id,
         total,
         created_at,
-        order_items ( 
+        order_items (  
           quantity, 
           price, 
           products(name) 

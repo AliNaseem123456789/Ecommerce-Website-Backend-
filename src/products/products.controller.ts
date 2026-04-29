@@ -4,7 +4,10 @@ import { BadRequestException } from '@nestjs/common';
 @Controller('api/v1/products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
-
+  @Get('suggestions')
+  async getSuggestions(@Query('q') searchTerm: string) {
+    return this.productsService.getSuggestions(searchTerm);
+  }
   @Get('by-ids')
   async getProductsByIds(@Query('ids') ids: string) {
     if (!ids) return [];
@@ -30,5 +33,9 @@ export class ProductsController {
       throw new BadRequestException('Invalid Product ID format');
     }
     return this.productsService.findOne(numericId);
+  }
+  @Get('search')
+  async searchProducts(@Query() query: any) {
+    return this.productsService.searchProducts(query);
   }
 }

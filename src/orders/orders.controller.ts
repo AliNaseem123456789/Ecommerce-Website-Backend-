@@ -6,11 +6,10 @@ import {
   UnauthorizedException,
   Body,
 } from '@nestjs/common';
-import { OrderService } from './orders.service';
-
+import { OrdersService } from './order.service';
 @Controller('api/v1/orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(private readonly orderService: OrdersService) {}
 
   @Get('my-orders')
   async getMyOrders(@Query('userId') userId: string) {

@@ -50,6 +50,7 @@ export class CartService {
       .delete()
       .eq('cart_item_id', cartItemId);
   }
+
   async mergeCarts(guestId: string, userId: string) {
     const { data: guestItems } = await supabase
       .from('cart_items_test')
@@ -61,5 +62,23 @@ export class CartService {
     }
     await supabase.from('cart_items_test').delete().eq('user_id', guestId);
     return { success: true };
+  }
+
+  async clearCart(userId: string) {
+    const { data, error } = await supabase
+      .from('cart_items_test')
+      .delete()
+      .eq('user_id', userId)
+      .select();
+
+    if (error) {
+      throw new Error(`Failed to clear cart: ${error.message}`);
+    }
+
+    return {
+      success: true,
+      message: 'Cart cleared successfully',
+      deletedCount: data?.length || 0,
+    };
   }
 }

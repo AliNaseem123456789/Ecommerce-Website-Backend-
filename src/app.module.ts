@@ -11,8 +11,25 @@ import { WishlistModule } from './wishlist/wishlist.module';
 import { ReviewModule } from './review/review.module';
 import { QuestionModule } from './question/question.module';
 import { OrdersModule } from './orders/orders.module';
+import { PaymentsModule } from './payments/payments.module';
+import { ConfigModule } from '@nestjs/config';
 @Module({
-  imports: [ProductsModule, SupabaseModule, CategoriesModule, AccountModule, AuthModule, CartModule, WishlistModule, ReviewModule, QuestionModule, OrdersModule],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Makes ConfigModule available everywhere
+    }),
+    ProductsModule,
+    SupabaseModule,
+    CategoriesModule,
+    AccountModule,
+    AuthModule,
+    CartModule,
+    WishlistModule,
+    ReviewModule,
+    QuestionModule,
+    OrdersModule,
+    PaymentsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
