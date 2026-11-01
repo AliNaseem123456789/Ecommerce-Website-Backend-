@@ -1,32 +1,31 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { supabase } from 'src/supabase/supabase.client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ReviewService {
+  constructor(private readonly prisma: PrismaService) {}
+
   async addReview(productId: string, formData: any) {
-    const { data, error } = await supabase
-      .from('product_reviews')
-      .insert([
-        {
-          product_id: productId,
+    try {
+      return await this.prisma.product_reviews.create({
+        data: {
+          product_id: Number(productId),
           ...formData,
         },
-      ])
-      .select()
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
-    return data;
+      });
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   async getByProduct(productId: string) {
-    const { data, error } = await supabase
-      .from('product_reviews')
-      .select('*')
-      .eq('product_id', productId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw new BadRequestException(error.message);
-    return data;
+    try {
+      return await this.prisma.product_reviews.findMany({
+        where: { product_id: Number(productId) },
+        orderBy: { created_at: 'desc' },
+      });
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 }
