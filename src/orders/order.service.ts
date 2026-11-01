@@ -1,66 +1,70 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { supabase } from '../supabase/supabase.client';
+import { embedOrder } from '../common/interceptors/serialize.interceptor';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class OrdersService {
-  async getUserOrders(userId: string) {
-    const { data, error } = await supabase
-      .from('orders')
-      .select(
-        `
-        order_id,
-        total,
-        created_at,
-        order_items (  
-          quantity, 
-          price, 
-          products(name) 
-        ),
-        shipping_address (*)
-      `,
-      )
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+  constructor(private readonly prisma: PrismaService) {}
 
-    if (error) {
+  async getUserOrders(userId: string) {
+    try {
+      const orders = await this.prisma.orders.findMany({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
+        select: {
+          order_id: true,
+          total: true,
+          created_at: true,
+          order_items: {
+            orderBy: { item_id: 'asc' },
+            select: {
+              quantity: true,
+              price: true,
+              products: { select: { name: true } },
+            },
+          },
+          shipping_address: true,
+        },
+      });
+      return orders.map((order) => ({
+        ...order,
+        order_items: order.order_items.map((item) =>
+          embedOrder({
+            ...item,
+            products: item.products ? embedOrder(item.products) : item.products,
+          }),
+        ),
+        shipping_address: order.shipping_address.map((address) =>
+          embedOrder(address),
+        ),
+      }));
+    } catch (error) {
       throw new BadRequestException(error.message);
     }
-
-    return data;
   }
+
   async createOrder(userId: string, orderData: any) {
     const { subtotal, shipping, total, form, items } = orderData;
 
-    // 1. Create the main Order
-    const { data: order, error: orderErr } = await supabase
-      .from('orders')
-      .insert([{ user_id: userId, subtotal, shipping, total }])
-      .select()
-      .single();
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.orders.create({
+        data: { user_id: userId, subtotal, shipping, total },
+      });
 
-    if (orderErr) throw new Error(orderErr.message);
+      await tx.shipping_address.create({
+        data: { order_id: order.order_id, ...form },
+      });
 
-    // 2. Save Shipping Address
-    const { error: addrErr } = await supabase
-      .from('shipping_address')
-      .insert([{ order_id: order.order_id, ...form }]);
+      await tx.order_items.createMany({
+        data: items.map((item) => ({
+          order_id: order.order_id,
+          product_id: item.products.product_id,
+          quantity: item.quantity,
+          price: item.products.price,
+        })),
+      });
 
-    if (addrErr) throw new Error(addrErr.message);
-
-    // 3. Save Order Items
-    const orderItems = items.map((item) => ({
-      order_id: order.order_id,
-      product_id: item.products.product_id,
-      quantity: item.quantity,
-      price: item.products.price,
-    }));
-
-    const { error: itemsErr } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsErr) throw new Error(itemsErr.message);
-
-    return order;
+      return order;
+    });
   }
 }
