@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { supabase } from '../supabase/supabase.client';
+import { ListProductsDto } from './dto/list-products.dto';
 
 @Injectable()
 export class ProductsService {
@@ -24,24 +25,37 @@ export class ProductsService {
     });
   }
 
-  async getProducts({
-    categories,
-    sort,
-  }: {
-    categories?: string;
-    sort?: string;
-  }) {
+  async getProducts(query: ListProductsDto) {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 12, 60);
     const where: Prisma.productsWhereInput = {};
-    if (categories) {
-      where.category_id = { in: categories.split(',').map(Number) };
+    if (query.categories) {
+      where.category_id = { in: query.categories.split(',').map(Number) };
+    }
+    if (query.minPrice != null || query.maxPrice != null) {
+      where.price = {};
+      if (query.minPrice != null) where.price.gte = query.minPrice;
+      if (query.maxPrice != null) where.price.lte = query.maxPrice;
     }
 
+    const sort = query.sort || query.sortBy;
     let orderBy: Prisma.productsOrderByWithRelationInput | undefined;
     if (sort === 'price_asc') orderBy = { price: 'asc' };
     if (sort === 'price_desc') orderBy = { price: 'desc' };
-    if (sort === 'rating') orderBy = { avg_rating: 'desc' };
+    if (sort === 'rating' || sort === 'rating_desc') orderBy = { avg_rating: 'desc' };
+    if (sort === 'name_asc') orderBy = { name: 'asc' };
+    if (sort === 'name_desc') orderBy = { name: 'desc' };
 
-    return this.prisma.products.findMany({ where, orderBy });
+    const [total, items] = await Promise.all([
+      this.prisma.products.count({ where }),
+      this.prisma.products.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    return { items, total, page, limit };
   }
 
   async findOne(id: number) {

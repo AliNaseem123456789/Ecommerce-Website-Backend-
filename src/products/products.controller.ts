@@ -1,6 +1,6 @@
-import { Controller, Get, Query, Param } from '@nestjs/common';
+import { Controller, Get, Query, Param, BadRequestException } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { BadRequestException } from '@nestjs/common';
+import { ListProductsDto } from './dto/list-products.dto';
 @Controller('api/v1/products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
@@ -19,11 +19,8 @@ export class ProductsController {
     return this.productsService.getFeatured(ids);
   }
   @Get()
-  async getProducts(
-    @Query('categories') categories?: string,
-    @Query('sort') sort?: string,
-  ) {
-    return this.productsService.getProducts({ categories, sort });
+  async getProducts(@Query() query: ListProductsDto) {
+    return this.productsService.getProducts(query);
   }
 
   @Get('search')
