@@ -12,6 +12,7 @@ import { ReviewModule } from './review/review.module';
 import { QuestionModule } from './question/question.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { AdminModule } from './admin/admin.module';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
@@ -37,6 +38,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     QuestionModule,
     OrdersModule,
     PaymentsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

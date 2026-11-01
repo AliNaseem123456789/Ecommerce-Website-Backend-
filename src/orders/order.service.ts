@@ -23,6 +23,12 @@ export class OrdersService {
         select: {
           order_id: true,
           total: true,
+          status: true,
+          payment_status: true,
+          paid_at: true,
+          shipped_at: true,
+          delivered_at: true,
+          cancelled_at: true,
           created_at: true,
           order_items: {
             orderBy: { item_id: 'asc' },
