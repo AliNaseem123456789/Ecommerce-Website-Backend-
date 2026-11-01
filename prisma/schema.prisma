@@ -29,13 +29,14 @@ model categories {
 }
 
 model order_items {
-  item_id    BigInt    @id @default(autoincrement())
-  order_id   String?   @db.Uuid
-  product_id Int?
-  quantity   Int?      @default(1)
-  price      Decimal?  @db.Decimal(10, 2)
-  orders     orders?   @relation(fields: [order_id], references: [order_id], onDelete: Cascade, onUpdate: NoAction)
-  products   products? @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  item_id      BigInt    @id @default(autoincrement())
+  order_id     String?   @db.Uuid
+  product_id   Int?
+  quantity     Int?      @default(1)
+  price        Decimal?  @db.Decimal(10, 2)
+  product_name String?   @db.VarChar(200)
+  orders       orders?   @relation(fields: [order_id], references: [order_id], onDelete: Cascade, onUpdate: NoAction)
+  products     products? @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -47,9 +48,16 @@ model orders {
   subtotal         Decimal?           @db.Decimal(10, 2)
   shipping         Decimal?           @db.Decimal(10, 2)
   tax              Decimal?           @db.Decimal(10, 2)
-  total            Decimal?           @db.Decimal(10, 2)
-  created_at       DateTime?          @default(now()) @db.Timestamp(6)
-  order_items      order_items[]
+  total              Decimal?           @db.Decimal(10, 2)
+  created_at         DateTime?          @default(now()) @db.Timestamp(6)
+  payment_intent_id  String?            @unique
+  payment_method     String?
+  payment_status     String?            @default("unpaid")
+  paid_at            DateTime?          @db.Timestamp(6)
+  shipped_at         DateTime?          @db.Timestamp(6)
+  delivered_at       DateTime?          @db.Timestamp(6)
+  cancelled_at       DateTime?          @db.Timestamp(6)
+  order_items        order_items[]
   users_test       users_test?        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   shipping_address shipping_address[]
 
@@ -62,8 +70,9 @@ model product_questions {
   name        String    @db.VarChar(100)
   email       String    @db.VarChar(100)
   question    String
-  created_at  DateTime? @default(now()) @db.Timestamp(6)
-  products    products? @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction)
+  created_at      DateTime?         @default(now()) @db.Timestamp(6)
+  products        products?         @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction)
+  product_answers product_answers[]
 
   @@schema("public")
 }
@@ -92,6 +101,7 @@ model products {
   stock             Int?                @default(0)
   avg_rating        Decimal?            @default(0) @db.Decimal(3, 2)
   created_at        DateTime?           @default(now()) @db.Timestamp(6)
+  image_url         String?
   cart_items_test   cart_items_test[]
   order_items       order_items[]
   product_questions product_questions[]
@@ -127,8 +137,9 @@ model users_test {
   created_at     DateTime?        @default(now()) @db.Timestamp(6)
   email          String           @unique
   password       String
-  orders         orders[]
-  user_addresses user_addresses[]
+  orders                orders[]
+  user_addresses        user_addresses[]
+  password_reset_tokens password_reset_tokens[]
 
   @@schema("public")
 }
@@ -160,8 +171,33 @@ model user_addresses {
   phone       String?
   email       String?
   created_at  DateTime?   @default(now()) @db.Timestamp(6)
+  is_default  Boolean?    @default(false)
   users_test  users_test? @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, type], map: "unique_user_address_type")
+  @@schema("public")
+}
+
+model password_reset_tokens {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String      @db.Uuid
+  token_hash String      @unique
+  expires_at DateTime    @db.Timestamp(6)
+  used_at    DateTime?   @db.Timestamp(6)
+  created_at DateTime?   @default(now()) @db.Timestamp(6)
+  users_test users_test  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
+  @@schema("public")
+}
+
+model product_answers {
+  id            Int               @id @default(autoincrement())
+  question_id   Int
+  answer        String
+  answered_by   String?
+  created_at    DateTime?         @default(now()) @db.Timestamp(6)
+  product_questions product_questions @relation(fields: [question_id], references: [question_id], onDelete: Cascade, onUpdate: NoAction)
+
   @@schema("public")
 }
