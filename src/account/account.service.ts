@@ -1,8 +1,11 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
 const ADDRESS_FIELDS = [
@@ -78,5 +81,47 @@ export class AccountService {
       message: 'Address deleted successfully',
       deletedId: addressId,
     };
+  }
+
+  async updateProfile(
+    userId: string,
+    data: { name?: string; email?: string },
+  ) {
+    if (data.email) {
+      const existing = await this.prisma.users_test.findUnique({
+        where: { email: data.email },
+      });
+      if (existing && existing.id !== userId) {
+        throw new ConflictException('Email is already in use');
+      }
+    }
+    return this.prisma.users_test.update({
+      where: { id: userId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.email !== undefined ? { email: data.email } : {}),
+      },
+      select: { id: true, name: true, email: true },
+    });
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.users_test.findUnique({
+      where: { id: userId },
+    });
+    if (!user) throw new NotFoundException('Account not found');
+    const matches = await bcrypt.compare(currentPassword, user.password);
+    if (!matches) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    await this.prisma.users_test.update({
+      where: { id: userId },
+      data: { password: await bcrypt.hash(newPassword, 10) },
+    });
+    return { ok: true };
   }
 }

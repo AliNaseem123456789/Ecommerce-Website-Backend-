@@ -26,6 +26,11 @@ export class ProductsController {
     return this.productsService.getProducts({ categories, sort });
   }
 
+  @Get('search')
+  async searchProducts(@Query() query: any) {
+    return this.productsService.searchProducts(query);
+  }
+
   @Get(':id')
   async getProduct(@Param('id') id: string) {
     const numericId = Number(id);
@@ -33,9 +38,5 @@ export class ProductsController {
       throw new BadRequestException('Invalid Product ID format');
     }
     return this.productsService.findOne(numericId);
-  }
-  @Get('search')
-  async searchProducts(@Query() query: any) {
-    return this.productsService.searchProducts(query);
   }
 }

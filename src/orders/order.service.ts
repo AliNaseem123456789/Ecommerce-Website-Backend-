@@ -1,10 +1,19 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { embedOrder } from '../common/interceptors/serialize.interceptor';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async getUserOrders(userId: string) {
     try {
@@ -43,4 +52,39 @@ export class OrdersService {
     }
   }
 
+  async getOrder(orderId: string, authorization?: string) {
+    let order;
+    try {
+      order = await this.prisma.orders.findUnique({
+        where: { order_id: orderId },
+        include: {
+          order_items: {
+            orderBy: { item_id: 'asc' },
+            include: { products: { select: { name: true } } },
+          },
+          shipping_address: true,
+        },
+      });
+    } catch {
+      throw new BadRequestException('Invalid order id');
+    }
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+    if (order.user_id && order.user_id !== this.requesterId(authorization)) {
+      throw new ForbiddenException('This order belongs to another account');
+    }
+    return order;
+  }
+
+  private requesterId(authorization?: string) {
+    const token = authorization?.replace(/^Bearer\s+/i, '');
+    if (!token) return null;
+    try {
+      const payload = this.jwtService.verify<{ sub?: string }>(token);
+      return payload.sub ?? null;
+    } catch {
+      return null;
+    }
+  }
 }

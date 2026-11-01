@@ -14,11 +14,17 @@ import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { MailModule } from './mail/mail.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // Makes ConfigModule available everywhere
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 5 }],
+    }),
+    MailModule,
     PrismaModule,
     ProductsModule,
     SupabaseModule,

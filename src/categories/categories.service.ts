@@ -9,9 +9,4 @@ export class CategoriesService {
       orderBy: { name: 'asc' },
     });
   }
-  async findAll() {
-    return this.prisma.categories.findMany({
-      orderBy: { name: 'asc' },
-    });
-  }
 }

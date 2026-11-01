@@ -1,4 +1,11 @@
-import { Controller, Get, Query, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Query,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { OrdersService } from './order.service';
 @Controller('api/v1/orders')
 export class OrderController {
@@ -13,5 +20,13 @@ export class OrderController {
     }
 
     return this.orderService.getUserOrders(userId);
+  }
+
+  @Get(':id')
+  getOrder(
+    @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.orderService.getOrder(id, authorization);
   }
 }

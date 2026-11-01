@@ -3,6 +3,8 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, raw, Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
+import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { SerializeInterceptor } from './common/interceptors/serialize.interceptor';
 
 (BigInt.prototype as any).toJSON = function () {
@@ -19,12 +21,16 @@ async function bootstrap() {
     return json()(req, res, next);
   });
   app.useGlobalInterceptors(new SerializeInterceptor());
+  app.use(helmet());
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, transform: true }),
+  );
   app.enableCors({
     origin: [
       'http://localhost:5173',
       'http://localhost:3000',
       'https://my-ecommerce-website-1w02w5xgi-ali-naseems-projects-305588ff.vercel.app',
-      'https://my-ecommerce-website-idnqoq0q1-ali-naseems-projects-305588ff.vercel.app/',
+      'https://my-ecommerce-website-idnqoq0q1-ali-naseems-projects-305588ff.vercel.app',
       'https://my-ecommerce-website-three.vercel.app',
       'https://chatbot-gateway.onrender.com',
     ],

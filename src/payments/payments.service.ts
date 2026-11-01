@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { priceOrder } from './pricing';
+import { MailService } from '../mail/mail.service';
 
 type AddressFields = {
   first_name?: string | null;
@@ -35,6 +36,7 @@ export class PaymentsService {
   constructor(
     private configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeKey) {
@@ -163,7 +165,14 @@ export class PaymentsService {
     }
 
     if (event.type === 'payment_intent.succeeded') {
-      await this.markPaid(event.data.object as PaidIntent);
+      const paid = await this.markPaid(event.data.object as PaidIntent);
+      if (paid?.email) {
+        try {
+          await this.mailService.sendOrderReceipt(paid.email, paid.order);
+        } catch (error) {
+          console.error('Order receipt email failed:', error);
+        }
+      }
     } else if (event.type === 'payment_intent.payment_failed') {
       await this.markFailed(event.data.object as PaidIntent);
     }
@@ -204,9 +213,9 @@ export class PaymentsService {
   private async markPaid(intent: PaidIntent) {
     const orderId = intent.metadata?.order_id;
     const cartUserId = intent.metadata?.cart_user_id;
-    if (!orderId) return;
+    if (!orderId) return null;
 
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
         SELECT order_id FROM orders
         WHERE order_id = CAST(${orderId} AS uuid)
@@ -214,10 +223,13 @@ export class PaymentsService {
       `;
       const order = await tx.orders.findUnique({
         where: { order_id: orderId },
-        include: { order_items: true },
+        include: {
+          order_items: true,
+          shipping_address: true,
+        },
       });
       if (!order || order.status === 'paid' || order.payment_status === 'paid') {
-        return;
+        return null;
       }
 
       for (const item of order.order_items) {
@@ -253,6 +265,11 @@ export class PaymentsService {
       if (cartUserId) {
         await tx.cart_items_test.deleteMany({ where: { user_id: cartUserId } });
       }
+
+      return {
+        email: order.shipping_address[0]?.email || null,
+        order,
+      };
     });
   }
 

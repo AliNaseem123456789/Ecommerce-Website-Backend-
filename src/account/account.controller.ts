@@ -1,9 +1,44 @@
-import { Controller, Get, Post, Delete, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Req,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { AccountService } from './account.service';
+import { ChangePasswordDto, UpdateProfileDto } from './dto/account.dto';
+
+const accountPipe = new ValidationPipe({ whitelist: true, transform: true });
 
 @Controller('/api/v1/account')
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
+
+  @Patch('profile')
+  @UseGuards(AuthGuard('jwt'))
+  @UsePipes(accountPipe)
+  updateProfile(@Req() req, @Body() body: UpdateProfileDto) {
+    return this.accountService.updateProfile(req.user.id, body);
+  }
+
+  @Post('password')
+  @UseGuards(AuthGuard('jwt'))
+  @UsePipes(accountPipe)
+  changePassword(@Req() req, @Body() body: ChangePasswordDto) {
+    return this.accountService.changePassword(
+      req.user.id,
+      body.currentPassword,
+      body.newPassword,
+    );
+  }
+
   @Get('addresses/:userId')
   async getAddresses(@Param('userId') userId: string) {
     return this.accountService.getAddresses(userId);

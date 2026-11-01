@@ -7,8 +7,4 @@ export class CategoriesController {
   getCategories() {
     return this.categoriesService.getCategories();
   }
-  @Get()
-  async getAllCategories() {
-    return this.categoriesService.findAll();
-  }
 }
