@@ -1,53 +1,57 @@
 import { Injectable } from '@nestjs/common';
-import { supabase } from 'src/supabase/supabase.client';
+import { embedOrder } from '../common/interceptors/serialize.interceptor';
+import { PrismaService } from '../prisma/prisma.service';
+
 @Injectable()
 export class WishlistService {
-  async getWishlist(userId: string) {
-    const { data, error } = await supabase
-      .from('wishlist_test')
-      .select('product_id')
-      .eq('user_id', userId);
+  constructor(private readonly prisma: PrismaService) {}
 
-    if (error) throw error;
-    return data.map((item) => item.product_id);
+  async getWishlist(userId: string) {
+    const rows = await this.prisma.wishlist_test.findMany({
+      where: { user_id: userId },
+      select: { product_id: true },
+      orderBy: { wishlist_item_id: 'asc' },
+    });
+    return rows.map((item) => item.product_id);
   }
+
   async toggle(userId: string, productId: string) {
-    const { data: existing } = await supabase
-      .from('wishlist_test')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('product_id', productId)
-      .single();
+    const product_id = Number(productId);
+    const existing = await this.prisma.wishlist_test.findFirst({
+      where: { user_id: userId, product_id },
+    });
 
     if (existing) {
-      await supabase
-        .from('wishlist_test')
-        .delete()
-        .eq('user_id', userId)
-        .eq('product_id', productId);
+      await this.prisma.wishlist_test.delete({
+        where: { wishlist_item_id: existing.wishlist_item_id },
+      });
       return { action: 'removed', productId };
-    } else {
-      await supabase
-        .from('wishlist_test')
-        .insert({ user_id: userId, product_id: productId });
-      return { action: 'added', productId };
     }
+
+    await this.prisma.wishlist_test.create({
+      data: { user_id: userId, product_id },
+    });
+    return { action: 'added', productId };
   }
+
   async getWishlistWithDetails(userId: string) {
-    const { data, error } = await supabase
-      .from('wishlist_test')
-      .select(
-        `
-        products (
-          product_id,
-          name,
-          price,
-          description
-        )
-      `,
-      )
-      .eq('user_id', userId);
-    if (error) throw error;
-    return data.map((item: any) => item.products).filter((p) => p !== null);
+    const rows = await this.prisma.wishlist_test.findMany({
+      where: { user_id: userId },
+      orderBy: { wishlist_item_id: 'asc' },
+      select: {
+        products: {
+          select: {
+            product_id: true,
+            name: true,
+            price: true,
+            description: true,
+          },
+        },
+      },
+    });
+    return rows
+      .map((item) => item.products)
+      .filter((product) => product !== null)
+      .map((product) => embedOrder(product));
   }
 }
