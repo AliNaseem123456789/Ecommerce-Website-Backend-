@@ -3,59 +3,74 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { supabase } from 'src/supabase/supabase.client';
+import { PrismaService } from '../prisma/prisma.service';
+
+const ADDRESS_FIELDS = [
+  'first_name',
+  'last_name',
+  'company',
+  'country',
+  'street',
+  'apartment',
+  'city',
+  'state',
+  'postal_code',
+  'phone',
+  'email',
+] as const;
 
 @Injectable()
 export class AccountService {
+  constructor(private readonly prisma: PrismaService) {}
+
   async getAddresses(userId: string) {
-    const { data, error } = await supabase
-      .from('user_addresses')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (error) throw new BadRequestException(error.message);
-    return data;
+    try {
+      return await this.prisma.user_addresses.findMany({
+        where: { user_id: userId },
+        orderBy: { created_at: 'asc' },
+      });
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
+
   async upsertAddress(userId: string, type: string, formData: any) {
-    const { data, error } = await supabase
-      .from('user_addresses')
-      .upsert(
-        {
-          user_id: userId,
-          type: type,
-          ...formData,
+    const data: Record<string, string | null> = {};
+    for (const field of ADDRESS_FIELDS) {
+      if (formData?.[field] !== undefined) data[field] = formData[field];
+    }
+
+    try {
+      return await this.prisma.user_addresses.upsert({
+        where: {
+          user_id_type: { user_id: userId, type },
         },
-        { onConflict: 'user_id, type' },
-      )
-      .select()
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
-    return data;
+        create: { user_id: userId, type, ...data },
+        update: data,
+      });
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
-  async deleteAddress(userId: string, addressId: string) {
-    const { data: existing, error: findError } = await supabase
-      .from('user_addresses')
-      .select('id')
-      .eq('id', addressId)
-      .eq('user_id', userId)
-      .single();
 
-    if (findError || !existing) {
+  async deleteAddress(userId: string, addressId: string) {
+    const existing = await this.prisma.user_addresses.findFirst({
+      where: { id: addressId, user_id: userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
       throw new NotFoundException(
         `Address with ID ${addressId} not found for this user`,
       );
     }
-    const { error: deleteError } = await supabase
-      .from('user_addresses')
-      .delete()
-      .eq('id', addressId)
-      .eq('user_id', userId);
 
-    if (deleteError) {
-      throw new BadRequestException(
-        `Failed to delete address: ${deleteError.message}`,
-      );
+    try {
+      await this.prisma.user_addresses.delete({
+        where: { id: addressId },
+      });
+    } catch (error) {
+      throw new BadRequestException(`Failed to delete address: ${error.message}`);
     }
 
     return {
