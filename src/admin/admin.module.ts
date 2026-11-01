@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RolesGuard } from '../auth/roles.guard';
+import { CouponsModule } from '../coupons/coupons.module';
 import { QuestionModule } from '../question/question.module';
 import { ReviewModule } from '../review/review.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 
 @Module({
-  imports: [AuthModule, QuestionModule, ReviewModule],
+  imports: [AuthModule, QuestionModule, ReviewModule, CouponsModule],
   controllers: [AdminController],
   providers: [AdminService, RolesGuard],
 })

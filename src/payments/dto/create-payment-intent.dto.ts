@@ -56,4 +56,12 @@ export class CreatePaymentIntentDto {
   @ValidateNested()
   @Type(() => ShippingAddressDto)
   address?: ShippingAddressDto;
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingCode?: string;
 }

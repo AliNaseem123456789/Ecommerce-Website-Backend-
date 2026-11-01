@@ -124,4 +124,22 @@ export class AccountService {
     });
     return { ok: true };
   }
+
+  async setDefaultAddress(userId: string, addressId: string) {
+    const address = await this.prisma.user_addresses.findFirst({
+      where: { id: addressId, user_id: userId },
+    });
+    if (!address) throw new NotFoundException('Address not found');
+    await this.prisma.$transaction([
+      this.prisma.user_addresses.updateMany({
+        where: { user_id: userId },
+        data: { is_default: false },
+      }),
+      this.prisma.user_addresses.update({
+        where: { id: addressId },
+        data: { is_default: true },
+      }),
+    ]);
+    return this.getAddresses(userId);
+  }
 }

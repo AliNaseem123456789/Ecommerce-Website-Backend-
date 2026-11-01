@@ -13,7 +13,11 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AccountService } from './account.service';
-import { ChangePasswordDto, UpdateProfileDto } from './dto/account.dto';
+import {
+  ChangePasswordDto,
+  SetDefaultAddressDto,
+  UpdateProfileDto,
+} from './dto/account.dto';
 
 const accountPipe = new ValidationPipe({ whitelist: true, transform: true });
 
@@ -37,6 +41,13 @@ export class AccountController {
       body.currentPassword,
       body.newPassword,
     );
+  }
+
+  @Post('addresses/default')
+  @UseGuards(AuthGuard('jwt'))
+  @UsePipes(accountPipe)
+  setDefault(@Req() req, @Body() body: SetDefaultAddressDto) {
+    return this.accountService.setDefaultAddress(req.user.id, body.addressId);
   }
 
   @Get('addresses/:userId')

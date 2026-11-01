@@ -7,8 +7,9 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
-import { priceOrder } from './pricing';
+import { priceOrder, roundMoney } from './pricing';
 import { MailService } from '../mail/mail.service';
+import { CouponsService } from '../coupons/coupons.service';
 
 type AddressFields = {
   first_name?: string | null;
@@ -37,6 +38,7 @@ export class PaymentsService {
     private configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly couponsService: CouponsService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeKey) {
@@ -79,7 +81,19 @@ export class PaymentsService {
         Number(line.products!.price.toString()) * (line.quantity as number),
       0,
     );
-    const totals = priceOrder(subtotal);
+    const quoted = await this.couponsService.quote(
+      dto.couponCode,
+      dto.userId,
+      subtotal,
+    );
+    if (!quoted.ok) {
+      throw new BadRequestException(quoted.message);
+    }
+    const shippingChoice = await this.resolveShipping(
+      dto.shippingCode,
+      subtotal,
+    );
+    const totals = priceOrder(subtotal, quoted.discount, shippingChoice.price);
     const address = await this.resolveAddress(dto);
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -102,8 +116,21 @@ export class PaymentsService {
           shipping: totals.shipping,
           tax: totals.tax,
           total: totals.total,
+          coupon_code: quoted.coupon?.code ?? null,
+          discount: totals.discount,
+          shipping_option: shippingChoice.code,
         },
       });
+      if (quoted.coupon) {
+        await tx.coupon_redemptions.create({
+          data: {
+            coupon_id: quoted.coupon.id,
+            order_id: created.order_id,
+            user_id: account ? dto.userId : null,
+            amount_discounted: totals.discount,
+          },
+        });
+      }
       await tx.shipping_address.create({
         data: { order_id: created.order_id, ...address },
       });
@@ -137,6 +164,7 @@ export class PaymentsService {
         clientSecret: paymentIntent.client_secret,
         orderId: order.order_id,
         subtotal: totals.subtotal,
+        discount: totals.discount,
         shipping: totals.shipping,
         tax: totals.tax,
         total: totals.total,
@@ -178,6 +206,23 @@ export class PaymentsService {
     }
 
     return { received: true };
+  }
+
+  private async resolveShipping(code: string | undefined, subtotal: number) {
+    const wanted = (code || 'standard').trim().toLowerCase();
+    const option = await this.prisma.shipping_options.findUnique({
+      where: { code: wanted },
+    });
+    if (!option || option.active === false) {
+      throw new BadRequestException('Choose a shipping option');
+    }
+    const threshold =
+      option.free_over == null ? null : Number(option.free_over.toString());
+    const price =
+      threshold != null && subtotal >= threshold
+        ? 0
+        : Number(option.price.toString());
+    return { code: option.code, price: roundMoney(price) };
   }
 
   private async resolveAddress(

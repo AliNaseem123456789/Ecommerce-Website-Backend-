@@ -24,6 +24,7 @@ import {
   UpdateProductDto,
 } from './dto/admin.dto';
 import { AnswerQuestionDto } from '../question/dto/question.dto';
+import { CreateCouponDto, UpdateCouponDto } from '../coupons/dto/coupon.dto';
 
 const pipe = new ValidationPipe({ whitelist: true, transform: true });
 
@@ -75,6 +76,28 @@ export class AdminController {
   @UsePipes(pipe)
   updateOrder(@Param('id') id: string, @Body() body: UpdateOrderStatusDto) {
     return this.adminService.updateOrderStatus(id, body);
+  }
+
+  @Get('coupons')
+  coupons() {
+    return this.adminService.listCoupons();
+  }
+
+  @Post('coupons')
+  @UsePipes(pipe)
+  createCoupon(@Body() body: CreateCouponDto) {
+    return this.adminService.createCoupon(body);
+  }
+
+  @Patch('coupons/:id')
+  @UsePipes(pipe)
+  updateCoupon(@Param('id') id: string, @Body() body: UpdateCouponDto) {
+    return this.adminService.updateCoupon(id, body);
+  }
+
+  @Delete('coupons/:id')
+  deleteCoupon(@Param('id') id: string) {
+    return this.adminService.deleteCoupon(id);
   }
 
   @Get('customers')

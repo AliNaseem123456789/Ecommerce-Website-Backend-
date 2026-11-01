@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { QuestionService } from '../question/question.service';
 import { ReviewService } from '../review/review.service';
+import { CouponsService } from '../coupons/coupons.service';
+import { CreateCouponDto, UpdateCouponDto } from '../coupons/dto/coupon.dto';
 import { supabase } from '../supabase/supabase.client';
 import {
   CreateProductDto,
@@ -30,6 +32,7 @@ export class AdminService {
     private readonly mailService: MailService,
     private readonly questionService: QuestionService,
     private readonly reviewService: ReviewService,
+    private readonly couponsService: CouponsService,
   ) {}
 
   summary() {
@@ -202,6 +205,22 @@ export class AdminService {
 
   answerQuestion(id: number, answer: string, adminId?: string) {
     return this.questionService.answer(id, answer, adminId);
+  }
+
+  listCoupons() {
+    return this.couponsService.list();
+  }
+
+  createCoupon(dto: CreateCouponDto) {
+    return this.couponsService.create(dto);
+  }
+
+  updateCoupon(id: string, dto: UpdateCouponDto) {
+    return this.couponsService.update(id, dto);
+  }
+
+  deleteCoupon(id: string) {
+    return this.couponsService.remove(id);
   }
 
   listCustomers() {

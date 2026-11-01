@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -17,4 +17,9 @@ export class ChangePasswordDto {
   @IsString()
   @MinLength(8)
   newPassword: string;
+}
+
+export class SetDefaultAddressDto {
+  @IsUUID()
+  addressId: string;
 }
