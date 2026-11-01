@@ -58,6 +58,22 @@ export class ProductsService {
     return { items, total, page, limit };
   }
 
+  async related(id: number, limit = 8) {
+    const product = await this.prisma.products.findUnique({
+      where: { product_id: id },
+      select: { category_id: true },
+    });
+    if (!product?.category_id) return [];
+    return this.prisma.products.findMany({
+      where: {
+        category_id: product.category_id,
+        product_id: { not: id },
+      },
+      orderBy: { avg_rating: 'desc' },
+      take: limit,
+    });
+  }
+
   async findOne(id: number) {
     const product = await this.prisma.products.findUnique({
       where: { product_id: id },

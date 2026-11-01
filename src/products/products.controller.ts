@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Param, BadRequestException } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { ListProductsDto } from './dto/list-products.dto';
+import { RelatedProductsDto } from './dto/related-products.dto';
 @Controller('api/v1/products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
@@ -26,6 +27,15 @@ export class ProductsController {
   @Get('search')
   async searchProducts(@Query() query: any) {
     return this.productsService.searchProducts(query);
+  }
+
+  @Get(':id/related')
+  related(@Param('id') id: string, @Query() query: RelatedProductsDto) {
+    const numericId = Number(id);
+    if (isNaN(numericId)) {
+      throw new BadRequestException('Invalid Product ID format');
+    }
+    return this.productsService.related(numericId, query.limit ?? 8);
   }
 
   @Get(':id')
