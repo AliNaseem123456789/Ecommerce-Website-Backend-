@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { json, raw, Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
 import { SerializeInterceptor } from './common/interceptors/serialize.interceptor';
@@ -9,8 +10,14 @@ import { SerializeInterceptor } from './common/interceptors/serialize.intercepto
 };
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   dotenv.config();
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.originalUrl.split('?')[0] === '/api/v1/payments/webhook') {
+      return raw({ type: 'application/json' })(req, res, next);
+    }
+    return json()(req, res, next);
+  });
   app.useGlobalInterceptors(new SerializeInterceptor());
   app.enableCors({
     origin: [

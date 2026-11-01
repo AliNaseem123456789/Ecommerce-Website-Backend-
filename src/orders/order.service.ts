@@ -43,28 +43,4 @@ export class OrdersService {
     }
   }
 
-  async createOrder(userId: string, orderData: any) {
-    const { subtotal, shipping, total, form, items } = orderData;
-
-    return this.prisma.$transaction(async (tx) => {
-      const order = await tx.orders.create({
-        data: { user_id: userId, subtotal, shipping, total },
-      });
-
-      await tx.shipping_address.create({
-        data: { order_id: order.order_id, ...form },
-      });
-
-      await tx.order_items.createMany({
-        data: items.map((item) => ({
-          order_id: order.order_id,
-          product_id: item.products.product_id,
-          quantity: item.quantity,
-          price: item.products.price,
-        })),
-      });
-
-      return order;
-    });
-  }
 }

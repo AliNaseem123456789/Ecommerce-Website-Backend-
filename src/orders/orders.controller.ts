@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Query,
-  UnauthorizedException,
-  Body,
-} from '@nestjs/common';
+import { Controller, Get, Query, UnauthorizedException } from '@nestjs/common';
 import { OrdersService } from './order.service';
 @Controller('api/v1/orders')
 export class OrderController {
@@ -20,9 +13,5 @@ export class OrderController {
     }
 
     return this.orderService.getUserOrders(userId);
-  }
-  @Post('place')
-  async placeOrder(@Body() body: any) {
-    return this.orderService.createOrder(body.userId, body);
   }
 }
