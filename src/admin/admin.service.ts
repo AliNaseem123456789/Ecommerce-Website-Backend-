@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { QuestionService } from '../question/question.service';
+import { ReviewService } from '../review/review.service';
 import { supabase } from '../supabase/supabase.client';
 import {
   CreateProductDto,
@@ -26,6 +28,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly questionService: QuestionService,
+    private readonly reviewService: ReviewService,
   ) {}
 
   summary() {
@@ -179,6 +183,25 @@ export class AdminService {
       }
     }
     return updated;
+  }
+
+  listReviews() {
+    return this.prisma.product_reviews.findMany({
+      orderBy: { created_at: 'desc' },
+      include: { products: { select: { name: true, product_id: true } } },
+    });
+  }
+
+  deleteReview(id: number) {
+    return this.reviewService.deleteByAdmin(id);
+  }
+
+  listQuestions() {
+    return this.questionService.listForAdmin();
+  }
+
+  answerQuestion(id: number, answer: string, adminId?: string) {
+    return this.questionService.answer(id, answer, adminId);
   }
 
   listCustomers() {

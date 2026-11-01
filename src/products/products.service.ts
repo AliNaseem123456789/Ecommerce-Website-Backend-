@@ -67,7 +67,10 @@ export class ProductsService {
         'JSON object requested, multiple (or no) rows returned',
       );
     }
-    return product;
+    const review_count = await this.prisma.product_reviews.count({
+      where: { product_id: id },
+    });
+    return { ...product, review_count };
   }
 
   async searchProducts(searchParams: any) {

@@ -1,15 +1,29 @@
-import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import { CreateQuestionDto } from './dto/question.dto';
 import { QuestionService } from './question.service';
+
+const pipe = new ValidationPipe({ whitelist: true, transform: true });
 
 @Controller('api/v1/questions')
 export class QuestionController {
   constructor(private readonly questionService: QuestionService) {}
+
   @Post()
-  async askQuestion(@Body() body: { product_id: string; formData: any }) {
+  @UsePipes(pipe)
+  askQuestion(@Body() body: CreateQuestionDto) {
     return this.questionService.createQuestion(body.product_id, body.formData);
   }
+
   @Get(':productId')
-  async getQuestions(@Param('productId') productId: string) {
+  getQuestions(@Param('productId') productId: string) {
     return this.questionService.getQuestionsByProduct(productId);
   }
 }

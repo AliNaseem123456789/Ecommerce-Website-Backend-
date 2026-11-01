@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -22,6 +23,7 @@ import {
   UpdateOrderStatusDto,
   UpdateProductDto,
 } from './dto/admin.dto';
+import { AnswerQuestionDto } from '../question/dto/question.dto';
 
 const pipe = new ValidationPipe({ whitelist: true, transform: true });
 
@@ -78,5 +80,30 @@ export class AdminController {
   @Get('customers')
   customers() {
     return this.adminService.listCustomers();
+  }
+
+  @Get('reviews')
+  reviews() {
+    return this.adminService.listReviews();
+  }
+
+  @Delete('reviews/:id')
+  deleteReview(@Param('id') id: string) {
+    return this.adminService.deleteReview(Number(id));
+  }
+
+  @Get('questions')
+  questions() {
+    return this.adminService.listQuestions();
+  }
+
+  @Post('questions/:id/answer')
+  @UsePipes(pipe)
+  answerQuestion(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() body: AnswerQuestionDto,
+  ) {
+    return this.adminService.answerQuestion(Number(id), body.answer, req.user?.id);
   }
 }
