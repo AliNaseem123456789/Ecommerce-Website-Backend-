@@ -1,36 +1,29 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { supabase } from '../supabase/supabase.client';
 
 @Injectable()
 export class ProductsService {
+  constructor(private readonly prisma: PrismaService) {}
+
   async getFeatured(idsString: string) {
     if (!idsString) return [];
 
     const ids = idsString.split(',').map(Number);
-
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .in('product_id', ids);
-
-    if (error) throw new Error(error.message);
-    return data;
+    return this.prisma.products.findMany({
+      where: { product_id: { in: ids } },
+    });
   }
 
   async findManyByIds(ids: number[]) {
     if (ids.length === 0) return [];
 
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .in('product_id', ids);
-
-    if (error) {
-      throw new Error(`Wishlist Fetch Error: ${error.message}`);
-    }
-
-    return data;
+    return this.prisma.products.findMany({
+      where: { product_id: { in: ids } },
+    });
   }
+
   async getProducts({
     categories,
     sort,
@@ -38,85 +31,72 @@ export class ProductsService {
     categories?: string;
     sort?: string;
   }) {
-    let query = supabase.from('products').select('*');
-
+    const where: Prisma.productsWhereInput = {};
     if (categories) {
-      const ids = categories.split(',').map(Number);
-      query = query.in('category_id', ids);
+      where.category_id = { in: categories.split(',').map(Number) };
     }
 
-    if (sort === 'price_asc') {
-      query = query.order('price', { ascending: true });
-    }
+    let orderBy: Prisma.productsOrderByWithRelationInput | undefined;
+    if (sort === 'price_asc') orderBy = { price: 'asc' };
+    if (sort === 'price_desc') orderBy = { price: 'desc' };
+    if (sort === 'rating') orderBy = { avg_rating: 'desc' };
 
-    if (sort === 'price_desc') {
-      query = query.order('price', { ascending: false });
-    }
-
-    if (sort === 'rating') {
-      query = query.order('avg_rating', { ascending: false });
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data;
+    return this.prisma.products.findMany({ where, orderBy });
   }
-  async findOne(id: number) {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('product_id', id)
-      .single();
 
-    if (error) throw new Error(error.message);
-    return data;
+  async findOne(id: number) {
+    const product = await this.prisma.products.findUnique({
+      where: { product_id: id },
+    });
+    if (!product) {
+      throw new Error(
+        'JSON object requested, multiple (or no) rows returned',
+      );
+    }
+    return product;
   }
 
   async searchProducts(searchParams: any) {
     const { q, category, minPrice, maxPrice, sortBy } = searchParams;
-    let query = supabase.from('products').select('*');
+    const where: Prisma.productsWhereInput = {};
 
     if (q) {
-      query = query.or(`name.ilike.%${q}%,description.ilike.%${q}%`);
+      where.OR = [
+        { name: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+      ];
     }
-    if (category) {
-      query = query.eq('category_id', category);
-    }
-    if (minPrice) {
-      query = query.gte('price', parseFloat(minPrice));
-    }
-    if (maxPrice) {
-      query = query.lte('price', parseFloat(maxPrice));
+    if (category) where.category_id = Number(category);
+    if (minPrice || maxPrice) {
+      where.price = {};
+      if (minPrice) where.price.gte = parseFloat(minPrice);
+      if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
+    let orderBy: Prisma.productsOrderByWithRelationInput = {
+      created_at: 'desc',
+    };
     switch (sortBy) {
       case 'price_asc':
-        query = query.order('price', { ascending: true });
+        orderBy = { price: 'asc' };
         break;
       case 'price_desc':
-        query = query.order('price', { ascending: false });
+        orderBy = { price: 'desc' };
         break;
       case 'name_asc':
-        query = query.order('name', { ascending: true });
+        orderBy = { name: 'asc' };
         break;
       case 'name_desc':
-        query = query.order('name', { ascending: false });
+        orderBy = { name: 'desc' };
         break;
       case 'rating_desc':
-        query = query.order('avg_rating', { ascending: false });
+        orderBy = { avg_rating: 'desc' };
         break;
-      default:
-        query = query.order('created_at', { ascending: false });
     }
 
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    return data;
+    return this.prisma.products.findMany({ where, orderBy });
   }
+
   async getSuggestions(searchTerm: string) {
     console.log('getSuggestions called with:', searchTerm);
 
@@ -124,17 +104,24 @@ export class ProductsService {
       return [];
     }
 
-    const { data, error } = await supabase
-      .from('products')
-      .select('product_id, name, price')
-      .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
-      .limit(5);
-
-    if (error) {
+    let rows;
+    try {
+      rows = await this.prisma.products.findMany({
+        where: {
+          OR: [
+            { name: { contains: searchTerm, mode: 'insensitive' } },
+            { description: { contains: searchTerm, mode: 'insensitive' } },
+          ],
+        },
+        select: { product_id: true, name: true, price: true },
+        take: 5,
+      });
+    } catch (error) {
       console.error('Suggestions error:', error);
       return [];
     }
-    const productsWithImages = data.map((product) => {
+
+    return rows.map((product) => {
       let image_url: string | null = null;
       try {
         const { data: imageData } = supabase.storage
@@ -149,11 +136,8 @@ export class ProductsService {
         product_id: product.product_id,
         name: product.name,
         price: product.price,
-        image_url: image_url,
+        image_url,
       };
     });
-
-    console.log('Suggestions found:', productsWithImages.length);
-    return productsWithImages;
   }
 }
