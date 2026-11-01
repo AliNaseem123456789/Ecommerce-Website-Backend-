@@ -57,9 +57,15 @@ model orders {
   shipped_at         DateTime?          @db.Timestamp(6)
   delivered_at       DateTime?          @db.Timestamp(6)
   cancelled_at       DateTime?          @db.Timestamp(6)
+  coupon_code        String?            @db.VarChar(50)
+  discount           Decimal?           @default(0) @db.Decimal(10, 2)
+  shipping_option    String?
+  tracking_number    String?
+  carrier            String?
   order_items        order_items[]
   users_test       users_test?        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   shipping_address shipping_address[]
+  coupon_redemptions coupon_redemptions[]
 
   @@schema("public")
 }
@@ -85,9 +91,12 @@ model product_reviews {
   email      String    @db.VarChar(100)
   title      String    @db.VarChar(200)
   review     String
-  rating     Decimal   @db.Decimal(2, 1)
-  created_at DateTime? @default(now()) @db.Timestamp(6)
-  products   products? @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction)
+  rating     Decimal     @db.Decimal(2, 1)
+  created_at DateTime?   @default(now()) @db.Timestamp(6)
+  user_id    String?     @db.Uuid
+  verified   Boolean?    @default(false)
+  products   products?   @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction)
+  users_test users_test? @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -140,6 +149,9 @@ model users_test {
   orders                orders[]
   user_addresses        user_addresses[]
   password_reset_tokens password_reset_tokens[]
+  coupon_redemptions    coupon_redemptions[]
+  product_reviews       product_reviews[]
+  refresh_tokens        refresh_tokens[]
 
   @@schema("public")
 }
@@ -199,5 +211,65 @@ model product_answers {
   created_at    DateTime?         @default(now()) @db.Timestamp(6)
   product_questions product_questions @relation(fields: [question_id], references: [question_id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@schema("public")
+}
+
+model coupons {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code               String               @unique @db.VarChar(50)
+  type               String               @db.VarChar(20)
+  value              Decimal              @db.Decimal(10, 2)
+  min_order          Decimal?             @db.Decimal(10, 2)
+  usage_limit        Int?
+  per_user_limit     Int?
+  starts_at          DateTime?            @db.Timestamp(6)
+  expires_at         DateTime?            @db.Timestamp(6)
+  active             Boolean?             @default(true)
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  coupon_redemptions coupon_redemptions[]
+
+  @@schema("public")
+}
+
+model coupon_redemptions {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coupon_id         String      @db.Uuid
+  order_id          String      @db.Uuid
+  user_id           String?     @db.Uuid
+  amount_discounted Decimal     @db.Decimal(10, 2)
+  created_at        DateTime?   @default(now()) @db.Timestamp(6)
+  coupons           coupons     @relation(fields: [coupon_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  orders            orders      @relation(fields: [order_id], references: [order_id], onDelete: Cascade, onUpdate: NoAction)
+  users_test        users_test? @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([coupon_id, order_id])
+  @@schema("public")
+}
+
+model shipping_options {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code       String    @unique @db.VarChar(50)
+  title      String    @db.VarChar(100)
+  price      Decimal   @db.Decimal(10, 2)
+  min_days   Int
+  max_days   Int
+  free_over  Decimal?  @db.Decimal(10, 2)
+  active     Boolean?  @default(true)
+  sort_order Int       @default(0)
+
+  @@schema("public")
+}
+
+model refresh_tokens {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String     @db.Uuid
+  token_hash String     @unique
+  expires_at DateTime   @db.Timestamp(6)
+  revoked_at DateTime?  @db.Timestamp(6)
+  user_agent String?
+  created_at DateTime?  @default(now()) @db.Timestamp(6)
+  users_test users_test @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
   @@schema("public")
 }
