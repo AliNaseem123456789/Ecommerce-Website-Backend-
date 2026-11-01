@@ -1,24 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { supabase } from '../supabase/supabase.client';
+import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class CategoriesService {
+  constructor(private readonly prisma: PrismaService) {}
+
   async getCategories() {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name');
-    if (error) {
-      throw new Error(error.message);
-    }
-    return data;
+    return this.prisma.categories.findMany({
+      orderBy: { name: 'asc' },
+    });
   }
   async findAll() {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name', { ascending: true });
-
-    if (error) throw new Error(error.message);
-    return data;
+    return this.prisma.categories.findMany({
+      orderBy: { name: 'asc' },
+    });
   }
 }

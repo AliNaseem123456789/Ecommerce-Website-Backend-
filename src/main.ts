@@ -2,9 +2,16 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
+import { SerializeInterceptor } from './common/interceptors/serialize.interceptor';
+
+(BigInt.prototype as any).toJSON = function () {
+  return Number(this);
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   dotenv.config();
+  app.useGlobalInterceptors(new SerializeInterceptor());
   app.enableCors({
     origin: [
       'http://localhost:5173',
