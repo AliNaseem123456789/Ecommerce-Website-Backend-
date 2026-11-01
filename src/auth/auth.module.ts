@@ -18,7 +18,7 @@ import { ConfigService } from '@nestjs/config';
         }
         return {
           secret,
-          signOptions: { expiresIn: '7d' },
+          signOptions: { expiresIn: '15m' },
         };
       },
     }),
