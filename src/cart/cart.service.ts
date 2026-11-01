@@ -1,84 +1,125 @@
 import { Injectable } from '@nestjs/common';
-import { supabase } from 'src/supabase/supabase.client';
+import { embedOrder } from '../common/interceptors/serialize.interceptor';
+import { PrismaService } from '../prisma/prisma.service';
+
+function supabaseResult(
+  data: unknown,
+  status = 200,
+  statusText = 'OK',
+) {
+  return { error: null, data, count: null, status, statusText };
+}
 
 @Injectable()
 export class CartService {
-  async getCart(userId: string) {
-    const { data, error } = await supabase
-      .from('cart_items_test')
-      .select(`cart_item_id, quantity, products(*)`)
-      .eq('user_id', userId);
+  constructor(private readonly prisma: PrismaService) {}
 
-    if (error) throw new Error(error.message);
-    return data;
+  async getCart(userId: string) {
+    const rows = await this.prisma.cart_items_test.findMany({
+      where: { user_id: userId },
+      orderBy: { cart_item_id: 'asc' },
+      select: {
+        cart_item_id: true,
+        quantity: true,
+        products: true,
+      },
+    });
+    return rows.map((row) => ({
+      ...row,
+      products: row.products ? embedOrder(row.products) : row.products,
+    }));
   }
 
-  async addItem(userId: string, productId: string, quantity: number) {
-    const { data: existing } = await supabase
-      .from('cart_items_test')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('product_id', productId)
-      .single();
+  async addItem(userId: string, productId: string | number, quantity: number) {
+    const product_id = Number(productId);
+    const existing = await this.prisma.cart_items_test.findFirst({
+      where: { user_id: userId, product_id },
+    });
 
     if (existing) {
-      return await supabase
-        .from('cart_items_test')
-        .update({ quantity: existing.quantity + quantity })
-        .eq('cart_item_id', existing.cart_item_id)
-        .select()
-        .single();
+      const updated = await this.prisma.cart_items_test.update({
+        where: { cart_item_id: existing.cart_item_id },
+        data: { quantity: (existing.quantity ?? 0) + quantity },
+      });
+      return supabaseResult(updated, 200, 'OK');
     }
 
-    return await supabase
-      .from('cart_items_test')
-      .insert({ user_id: userId, product_id: productId, quantity })
-      .select(`cart_item_id, quantity, products(*)`)
-      .single();
+    const created = await this.prisma.cart_items_test.create({
+      data: { user_id: userId, product_id, quantity },
+      select: {
+        cart_item_id: true,
+        quantity: true,
+        products: true,
+      },
+    });
+    return supabaseResult(
+      { ...created, products: created.products ? embedOrder(created.products) : created.products },
+      201,
+      'Created',
+    );
   }
 
   async updateQty(cartItemId: string, quantity: number) {
-    return await supabase
-      .from('cart_items_test')
-      .update({ quantity })
-      .eq('cart_item_id', cartItemId);
+    await this.prisma.cart_items_test.update({
+      where: { cart_item_id: BigInt(cartItemId) },
+      data: { quantity },
+    });
+    return supabaseResult(null, 204, 'No Content');
   }
 
   async removeItem(cartItemId: string) {
-    return await supabase
-      .from('cart_items_test')
-      .delete()
-      .eq('cart_item_id', cartItemId);
+    await this.prisma.cart_items_test.delete({
+      where: { cart_item_id: BigInt(cartItemId) },
+    });
+    return supabaseResult(null, 204, 'No Content');
   }
 
   async mergeCarts(guestId: string, userId: string) {
-    const { data: guestItems } = await supabase
-      .from('cart_items_test')
-      .select('*')
-      .eq('user_id', guestId);
-    if (!guestItems || guestItems.length === 0) return;
-    for (const item of guestItems) {
-      await this.addItem(userId, item.product_id, item.quantity);
-    }
-    await supabase.from('cart_items_test').delete().eq('user_id', guestId);
-    return { success: true };
+    return this.prisma.$transaction(async (tx) => {
+      const guestItems = await tx.cart_items_test.findMany({
+        where: { user_id: guestId },
+      });
+      if (guestItems.length === 0) return;
+
+      for (const item of guestItems) {
+        const existing = await tx.cart_items_test.findFirst({
+          where: { user_id: userId, product_id: item.product_id },
+        });
+        if (existing) {
+          await tx.cart_items_test.update({
+            where: { cart_item_id: existing.cart_item_id },
+            data: {
+              quantity: (existing.quantity ?? 0) + (item.quantity ?? 0),
+            },
+          });
+        } else {
+          await tx.cart_items_test.create({
+            data: {
+              user_id: userId,
+              product_id: item.product_id,
+              quantity: item.quantity,
+            },
+          });
+        }
+      }
+
+      await tx.cart_items_test.deleteMany({ where: { user_id: guestId } });
+      return { success: true };
+    });
   }
 
   async clearCart(userId: string) {
-    const { data, error } = await supabase
-      .from('cart_items_test')
-      .delete()
-      .eq('user_id', userId)
-      .select();
-
-    if (error) {
+    try {
+      const deleted = await this.prisma.cart_items_test.deleteMany({
+        where: { user_id: userId },
+      });
+      return {
+        success: true,
+        message: 'Cart cleared successfully',
+        deletedCount: deleted.count,
+      };
+    } catch (error) {
       throw new Error(`Failed to clear cart: ${error.message}`);
     }
-
-    return {
-      success: true,
-      message: 'Cart cleared successfully',
-      deletedCount: data?.length || 0,
-    };
   }
 }
