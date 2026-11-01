@@ -34,6 +34,19 @@ export class WishlistService {
     return { action: 'added', productId };
   }
 
+  async merge(userId: string, productIds: number[]) {
+    for (const product_id of productIds) {
+      const existing = await this.prisma.wishlist_test.findFirst({
+        where: { user_id: userId, product_id },
+      });
+      if (existing) continue;
+      await this.prisma.wishlist_test.create({
+        data: { user_id: userId, product_id },
+      });
+    }
+    return this.getWishlist(userId);
+  }
+
   async getWishlistWithDetails(userId: string) {
     const rows = await this.prisma.wishlist_test.findMany({
       where: { user_id: userId },

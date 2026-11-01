@@ -1,11 +1,16 @@
 import {
+  Body,
   Controller,
   Get,
   Headers,
   Param,
+  Post,
   Query,
   UnauthorizedException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
+import { TrackOrderDto } from './dto/track-order.dto';
 import { OrdersService } from './order.service';
 @Controller('api/v1/orders')
 export class OrderController {
@@ -20,6 +25,12 @@ export class OrderController {
     }
 
     return this.orderService.getUserOrders(userId);
+  }
+
+  @Post('track')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  track(@Body() body: TrackOrderDto) {
+    return this.orderService.track(body.orderId, body.email);
   }
 
   @Get(':id')

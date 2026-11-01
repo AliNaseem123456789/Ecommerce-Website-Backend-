@@ -68,6 +68,24 @@ export class ProductImageDto {
 export class UpdateOrderStatusDto {
   @IsIn(['pending', 'paid', 'shipped', 'delivered', 'cancelled'])
   status: string;
+
+  @IsOptional()
+  @IsString()
+  tracking_number?: string;
+
+  @IsOptional()
+  @IsString()
+  carrier?: string;
+}
+
+export class UpdateOrderTrackingDto {
+  @IsOptional()
+  @IsString()
+  tracking_number?: string;
+
+  @IsOptional()
+  @IsString()
+  carrier?: string;
 }
 
 export class ListOrdersDto {

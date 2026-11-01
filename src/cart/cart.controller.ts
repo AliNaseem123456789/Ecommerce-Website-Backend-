@@ -6,8 +6,11 @@ import {
   Param,
   Delete,
   Put,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
+import { MergeCartDto } from './dto/cart.dto';
 
 @Controller('api/v1/cart')
 export class CartController {
@@ -16,6 +19,12 @@ export class CartController {
   @Get(':userId')
   getCart(@Param('userId') userId: string) {
     return this.cartService.getCart(userId);
+  }
+
+  @Post('merge')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  merge(@Body() body: MergeCartDto) {
+    return this.cartService.mergeCarts(body.guestId, body.userId);
   }
 
   @Post('add')

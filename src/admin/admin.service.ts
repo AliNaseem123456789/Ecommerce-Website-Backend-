@@ -14,6 +14,7 @@ import { supabase } from '../supabase/supabase.client';
 import {
   CreateProductDto,
   UpdateOrderStatusDto,
+  UpdateOrderTrackingDto,
   UpdateProductDto,
 } from './dto/admin.dto';
 
@@ -167,7 +168,14 @@ export class AdminService {
       }
       return tx.orders.update({
         where: { order_id: orderId },
-        data: { status: dto.status, ...stamp },
+        data: {
+          status: dto.status,
+          ...stamp,
+          ...(dto.tracking_number !== undefined
+            ? { tracking_number: dto.tracking_number }
+            : {}),
+          ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
+        },
       });
     });
 
@@ -178,7 +186,7 @@ export class AdminService {
           await this.mailService.send(
             email,
             `Order ${order.order_id} has shipped`,
-            `<p>Your order ${order.order_id} is on the way.</p>`,
+            `<p>Your order ${order.order_id} is on the way.</p><p>Carrier: ${dto.carrier || order.carrier || 'not set'}<br/>Tracking: ${dto.tracking_number || order.tracking_number || 'not set'}</p>`,
           );
         } catch (error) {
           console.error('Shipment email failed:', error);
@@ -186,6 +194,20 @@ export class AdminService {
       }
     }
     return updated;
+  }
+
+  async updateTracking(orderId: string, dto: UpdateOrderTrackingDto) {
+    const order = await this.prisma.orders.findUnique({
+      where: { order_id: orderId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return this.prisma.orders.update({
+      where: { order_id: orderId },
+      data: {
+        tracking_number: dto.tracking_number ?? null,
+        carrier: dto.carrier ?? null,
+      },
+    });
   }
 
   listReviews() {

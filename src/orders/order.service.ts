@@ -30,6 +30,8 @@ export class OrdersService {
           delivered_at: true,
           cancelled_at: true,
           created_at: true,
+          tracking_number: true,
+          carrier: true,
           order_items: {
             orderBy: { item_id: 'asc' },
             select: {
@@ -56,6 +58,36 @@ export class OrdersService {
     } catch (error) {
       throw new BadRequestException(error.message);
     }
+  }
+
+  async track(orderId: string, email: string) {
+    let order;
+    try {
+      order = await this.prisma.orders.findUnique({
+        where: { order_id: orderId },
+        include: { shipping_address: true, order_items: true },
+      });
+    } catch {
+      throw new BadRequestException('Invalid order id');
+    }
+    const matches = order?.shipping_address.some(
+      (address) => address.email?.toLowerCase() === email.toLowerCase(),
+    );
+    if (!order || !matches) {
+      throw new NotFoundException('No order matches that number and email');
+    }
+    return {
+      order_id: order.order_id,
+      status: order.status,
+      payment_status: order.payment_status,
+      created_at: order.created_at,
+      paid_at: order.paid_at,
+      shipped_at: order.shipped_at,
+      delivered_at: order.delivered_at,
+      cancelled_at: order.cancelled_at,
+      tracking_number: order.tracking_number,
+      carrier: order.carrier,
+    };
   }
 
   async getOrder(orderId: string, authorization?: string) {

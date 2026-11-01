@@ -21,6 +21,7 @@ import {
   ListOrdersDto,
   ProductImageDto,
   UpdateOrderStatusDto,
+  UpdateOrderTrackingDto,
   UpdateProductDto,
 } from './dto/admin.dto';
 import { AnswerQuestionDto } from '../question/dto/question.dto';
@@ -70,6 +71,12 @@ export class AdminController {
   @Get('orders')
   orders(@Query() query: ListOrdersDto) {
     return this.adminService.listOrders(query.status);
+  }
+
+  @Patch('orders/:id/tracking')
+  @UsePipes(pipe)
+  updateTracking(@Param('id') id: string, @Body() body: UpdateOrderTrackingDto) {
+    return this.adminService.updateTracking(id, body);
   }
 
   @Patch('orders/:id/status')
