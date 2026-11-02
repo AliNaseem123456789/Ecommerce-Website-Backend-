@@ -29,6 +29,27 @@ export class ProductsController {
     return this.productsService.searchProducts(query);
   }
 
+  // Literal routes must stay above ':id'.
+  @Get('best-sellers')
+  bestSellers(@Query('limit') limit?: string) {
+    return this.productsService.bestSellers(Number(limit) || 8);
+  }
+
+  @Get('new-arrivals')
+  newArrivals(@Query('limit') limit?: string) {
+    return this.productsService.newArrivals(Number(limit) || 8);
+  }
+
+  @Get('top-rated')
+  topRated(@Query('limit') limit?: string) {
+    return this.productsService.topRated(Number(limit) || 8);
+  }
+
+  @Get('most-wishlisted')
+  mostWishlisted(@Query('limit') limit?: string) {
+    return this.productsService.mostWishlisted(Number(limit) || 8);
+  }
+
   @Get(':id/related')
   related(@Param('id') id: string, @Query() query: RelatedProductsDto) {
     const numericId = Number(id);

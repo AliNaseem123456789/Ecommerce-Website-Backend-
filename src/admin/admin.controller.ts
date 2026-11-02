@@ -8,22 +8,30 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AdminService } from './admin.service';
 import {
+  CreateCategoryDto,
   CreateProductDto,
   ListOrdersDto,
   ProductImageDto,
+  ReorderImagesDto,
+  UpdateCategoryDto,
   UpdateOrderStatusDto,
   UpdateOrderTrackingDto,
   UpdateProductDto,
 } from './dto/admin.dto';
+import type { UploadedImage } from './admin.service';
 import { AnswerQuestionDto } from '../question/dto/question.dto';
 import { CreateCouponDto, UpdateCouponDto } from '../coupons/dto/coupon.dto';
 
@@ -51,6 +59,11 @@ export class AdminController {
     return this.adminService.createProduct(body);
   }
 
+  @Get('products/:id')
+  getProduct(@Param('id') id: string) {
+    return this.adminService.getProduct(Number(id));
+  }
+
   @Patch('products/:id')
   @UsePipes(pipe)
   updateProduct(@Param('id') id: string, @Body() body: UpdateProductDto) {
@@ -68,9 +81,72 @@ export class AdminController {
     return this.adminService.uploadImage(Number(id), body.dataUrl);
   }
 
+  // ----- product image gallery -----
+
+  @Get('products/:id/images')
+  listImages(@Param('id') id: string) {
+    return this.adminService.listImages(Number(id));
+  }
+
+  @Post('products/:id/images')
+  @UseInterceptors(FilesInterceptor('files', 6))
+  uploadImages(
+    @Param('id') id: string,
+    @UploadedFiles() files: UploadedImage[],
+  ) {
+    return this.adminService.uploadImages(Number(id), files);
+  }
+
+  @Delete('products/:id/images/:imageId')
+  deleteImage(@Param('id') id: string, @Param('imageId') imageId: string) {
+    return this.adminService.deleteImage(Number(id), Number(imageId));
+  }
+
+  @Patch('products/:id/images/reorder')
+  @UsePipes(pipe)
+  reorderImages(@Param('id') id: string, @Body() body: ReorderImagesDto) {
+    return this.adminService.reorderImages(Number(id), body.ids);
+  }
+
+  @Patch('products/:id/images/:imageId/primary')
+  setPrimaryImage(@Param('id') id: string, @Param('imageId') imageId: string) {
+    return this.adminService.setPrimaryImage(Number(id), Number(imageId));
+  }
+
+  // ----- categories -----
+
+  @Get('categories')
+  categories() {
+    return this.adminService.listCategories();
+  }
+
+  @Post('categories')
+  createCategory(@Body() body: CreateCategoryDto) {
+    return this.adminService.createCategory(body);
+  }
+
+  @Patch('categories/:id')
+  updateCategory(@Param('id') id: string, @Body() body: UpdateCategoryDto) {
+    return this.adminService.updateCategory(Number(id), body);
+  }
+
+  @Post('categories/:id/image')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadCategoryImage(
+    @Param('id') id: string,
+    @UploadedFile() file: UploadedImage,
+  ) {
+    return this.adminService.uploadCategoryImage(Number(id), file);
+  }
+
   @Get('orders')
   orders(@Query() query: ListOrdersDto) {
     return this.adminService.listOrders(query.status);
+  }
+
+  @Get('orders/:id')
+  getOrder(@Param('id') id: string) {
+    return this.adminService.getOrder(id);
   }
 
   @Patch('orders/:id/tracking')

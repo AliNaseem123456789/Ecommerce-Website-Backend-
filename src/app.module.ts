@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ProductsModule } from './products/products.module';
+import { ContentModule } from './content/content.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { CategoriesModule } from './categories/categories.module';
 import { AccountModule } from './account/account.module';
@@ -30,6 +31,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     MailModule,
     PrismaModule,
     ProductsModule,
+    ContentModule,
     SupabaseModule,
     CategoriesModule,
     AccountModule,

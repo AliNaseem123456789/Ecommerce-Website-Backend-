@@ -3,6 +3,17 @@ import { CategoriesService } from './categories.service';
 @Controller('api/v1/categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
+  // Literal route must stay above any parameterised route.
+  @Get('tree')
+  getTree() {
+    return this.categoriesService.getTree();
+  }
+
+  @Get('featured')
+  getFeatured() {
+    return this.categoriesService.getFeatured();
+  }
+
   @Get()
   getCategories() {
     return this.categoriesService.getCategories();

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { QuestionService } from '../question/question.service';
@@ -25,6 +26,38 @@ const TRANSITIONS: Record<string, string[]> = {
   delivered: [],
   cancelled: [],
 };
+
+export interface UploadedImage {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
+
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+];
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpeg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+};
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_GALLERY_UPLOAD = 6;
+
+/** Public URL -> object name inside the `products` bucket. */
+function storageObjectName(url: string): string | null {
+  if (!url) return null;
+  const marker = '/products/';
+  const index = url.lastIndexOf(marker);
+  if (index === -1) return null;
+  const name = url.slice(index + marker.length).split('?')[0];
+  return name ? decodeURIComponent(name) : null;
+}
 
 @Injectable()
 export class AdminService {
@@ -67,6 +100,7 @@ export class AdminService {
       price: dto.price,
       stock: dto.stock ?? 0,
       category_id: dto.category_id,
+      brand_id: dto.brand_id,
     };
     try {
       return await this.prisma.products.create({ data });
@@ -119,6 +153,25 @@ export class AdminService {
       where: { product_id: id },
       data: { image_url: data.publicUrl },
     });
+  }
+
+  getProduct(id: number) {
+    return this.requireProduct(id);
+  }
+
+  async getOrder(id: string) {
+    const order = await this.prisma.orders.findUnique({
+      where: { order_id: id },
+      include: {
+        order_items: {
+          include: { products: { select: { name: true, product_id: true } } },
+        },
+        shipping_address: true,
+        users_test: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
   }
 
   listOrders(status?: string) {
@@ -256,6 +309,302 @@ export class AdminService {
         created_at: true,
       },
     });
+  }
+
+  // ---------------------------------------------------------------
+  // Product image gallery
+  // ---------------------------------------------------------------
+
+  async listImages(productId: number) {
+    await this.requireProduct(productId);
+    return this.prisma.product_images.findMany({
+      where: { product_id: productId },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async uploadImages(productId: number, files: UploadedImage[]) {
+    await this.requireProduct(productId);
+    if (!files?.length) {
+      throw new BadRequestException('No files were received');
+    }
+    if (files.length > MAX_GALLERY_UPLOAD) {
+      throw new BadRequestException(
+        `Upload at most ${MAX_GALLERY_UPLOAD} images at a time`,
+      );
+    }
+
+    const existing = await this.prisma.product_images.count({
+      where: { product_id: productId },
+    });
+    let nextOrder = existing;
+    const created: unknown[] = [];
+
+    for (const file of files) {
+      if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+        throw new BadRequestException(
+          `${file.originalname}: only JPEG, PNG, WebP and AVIF are allowed`,
+        );
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        throw new BadRequestException(`${file.originalname}: larger than 5 MB`);
+      }
+
+      // Unique object name per upload, so the CDN never serves a stale file.
+      const ext = EXTENSION_BY_TYPE[file.mimetype] || 'jpeg';
+      const objectName = `${productId}-${randomUUID()}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('products')
+        .upload(objectName, file.buffer, {
+          upsert: false,
+          contentType: file.mimetype,
+        });
+      if (error) {
+        throw new BadRequestException(
+          `${file.originalname}: upload failed (${error.message})`,
+        );
+      }
+
+      const { data } = supabase.storage
+        .from('products')
+        .getPublicUrl(objectName);
+
+      created.push(
+        await this.prisma.product_images.create({
+          data: {
+            product_id: productId,
+            url: data.publicUrl,
+            sort_order: nextOrder,
+            is_primary: existing === 0 && nextOrder === 0,
+          },
+        }),
+      );
+      nextOrder += 1;
+    }
+
+    await this.syncPrimaryImage(productId);
+    return this.listImages(productId);
+  }
+
+  async deleteImage(productId: number, imageId: number) {
+    await this.requireProduct(productId);
+    const image = await this.prisma.product_images.findFirst({
+      where: { id: imageId, product_id: productId },
+    });
+    if (!image) throw new NotFoundException('Image not found');
+
+    await this.prisma.product_images.delete({ where: { id: imageId } });
+
+    const objectName = storageObjectName(image.url);
+    if (objectName) {
+      await supabase.storage.from('products').remove([objectName]);
+    }
+
+    await this.resequenceImages(productId);
+    await this.syncPrimaryImage(productId);
+    return this.listImages(productId);
+  }
+
+  async reorderImages(productId: number, ids: number[]) {
+    await this.requireProduct(productId);
+    const owned = await this.prisma.product_images.findMany({
+      where: { product_id: productId },
+      select: { id: true },
+    });
+    const ownedIds = new Set(owned.map((row) => row.id));
+    if (ids.length !== ownedIds.size || ids.some((id) => !ownedIds.has(id))) {
+      throw new BadRequestException(
+        'The ordered list must contain every image of this product exactly once',
+      );
+    }
+
+    await this.prisma.$transaction(
+      ids.map((id, index) =>
+        this.prisma.product_images.update({
+          where: { id },
+          data: { sort_order: index },
+        }),
+      ),
+    );
+    await this.syncPrimaryImage(productId);
+    return this.listImages(productId);
+  }
+
+  async setPrimaryImage(productId: number, imageId: number) {
+    await this.requireProduct(productId);
+    const image = await this.prisma.product_images.findFirst({
+      where: { id: imageId, product_id: productId },
+    });
+    if (!image) throw new NotFoundException('Image not found');
+
+    await this.prisma.$transaction([
+      this.prisma.product_images.updateMany({
+        where: { product_id: productId },
+        data: { is_primary: false },
+      }),
+      this.prisma.product_images.update({
+        where: { id: imageId },
+        data: { is_primary: true },
+      }),
+      this.prisma.products.update({
+        where: { product_id: productId },
+        data: { image_url: image.url },
+      }),
+    ]);
+    return this.listImages(productId);
+  }
+
+  /** Close gaps in sort_order after a delete. */
+  private async resequenceImages(productId: number) {
+    const rows = await this.prisma.product_images.findMany({
+      where: { product_id: productId },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+    });
+    await this.prisma.$transaction(
+      rows.map((row, index) =>
+        this.prisma.product_images.update({
+          where: { id: row.id },
+          data: { sort_order: index },
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Guarantees exactly one primary image and keeps products.image_url in step,
+   * so the storefront, cart, wishlist and compare keep working unchanged.
+   */
+  private async syncPrimaryImage(productId: number) {
+    const rows = await this.prisma.product_images.findMany({
+      where: { product_id: productId },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+
+    if (rows.length === 0) {
+      await this.prisma.products.update({
+        where: { product_id: productId },
+        data: { image_url: null },
+      });
+      return;
+    }
+
+    const primary = rows.find((row) => row.is_primary) || rows[0];
+    await this.prisma.$transaction([
+      this.prisma.product_images.updateMany({
+        where: { product_id: productId, id: { not: primary.id } },
+        data: { is_primary: false },
+      }),
+      this.prisma.product_images.update({
+        where: { id: primary.id },
+        data: { is_primary: true },
+      }),
+      this.prisma.products.update({
+        where: { product_id: productId },
+        data: { image_url: primary.url },
+      }),
+    ]);
+  }
+
+  // ---------------------------------------------------------------
+  // Categories
+  // ---------------------------------------------------------------
+
+  listCategories() {
+    return this.prisma.categories.findMany({
+      orderBy: [{ sort_order: 'asc' }, { name: 'asc' }],
+      include: {
+        _count: { select: { products: true } },
+        parent: { select: { category_id: true, name: true } },
+      },
+    });
+  }
+
+  createCategory(dto: { name: string }) {
+    return this.prisma.categories.create({ data: { name: dto.name } });
+  }
+
+  async updateCategory(
+    id: number,
+    dto: {
+      name?: string;
+      featured?: boolean;
+      sort_order?: number;
+      parent_id?: number | null;
+    },
+  ) {
+    await this.requireCategory(id);
+    if (dto.parent_id != null) {
+      if (dto.parent_id === id) {
+        throw new BadRequestException('A category cannot be its own parent');
+      }
+      const parent = await this.prisma.categories.findUnique({
+        where: { category_id: dto.parent_id },
+        select: { parent_id: true },
+      });
+      if (!parent) throw new BadRequestException('That parent category does not exist');
+      if (parent.parent_id != null) {
+        throw new BadRequestException(
+          'Only one level of subcategory is supported',
+        );
+      }
+    }
+    return this.prisma.categories.update({
+      where: { category_id: id },
+      data: dto,
+    });
+  }
+
+  async uploadCategoryImage(id: number, file: UploadedImage) {
+    await this.requireCategory(id);
+    if (!file) throw new BadRequestException('No file was received');
+    if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Only JPEG, PNG, WebP and AVIF images are allowed',
+      );
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      throw new BadRequestException('Images must be 5 MB or smaller');
+    }
+
+    const ext = EXTENSION_BY_TYPE[file.mimetype] || 'jpeg';
+    const objectName = `category-${id}-${randomUUID()}.${ext}`;
+    const { error } = await supabase.storage
+      .from('products')
+      .upload(objectName, file.buffer, {
+        upsert: false,
+        contentType: file.mimetype,
+      });
+    if (error) {
+      throw new BadRequestException(`Upload failed: ${error.message}`);
+    }
+
+    const { data } = supabase.storage.from('products').getPublicUrl(objectName);
+    const previous = await this.prisma.categories.findUnique({
+      where: { category_id: id },
+      select: { image_url: true },
+    });
+
+    const updated = await this.prisma.categories.update({
+      where: { category_id: id },
+      data: { image_url: data.publicUrl },
+    });
+
+    const oldObject = storageObjectName(previous?.image_url || '');
+    if (oldObject && oldObject.startsWith(`category-${id}-`)) {
+      await supabase.storage.from('products').remove([oldObject]);
+    }
+
+    return updated;
+  }
+
+  private async requireCategory(id: number) {
+    const category = await this.prisma.categories.findUnique({
+      where: { category_id: id },
+    });
+    if (!category) throw new NotFoundException('Category not found');
+    return category;
   }
 
   private async requireProduct(id: number) {

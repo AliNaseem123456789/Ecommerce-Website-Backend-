@@ -21,10 +21,17 @@ model cart_items_test {
 }
 
 model categories {
-  category_id Int        @id @default(autoincrement())
-  name        String     @unique @db.VarChar(100)
+  category_id Int          @id @default(autoincrement())
+  name        String       @unique @db.VarChar(100)
+  image_url   String?
+  featured    Boolean?     @default(false)
+  sort_order  Int?         @default(0)
+  parent_id   Int?
+  parent      categories?  @relation("category_tree", fields: [parent_id], references: [category_id], onDelete: NoAction, onUpdate: NoAction)
+  children    categories[] @relation("category_tree")
   products    products[]
 
+  @@index([parent_id])
   @@schema("public")
 }
 
@@ -70,6 +77,95 @@ model orders {
   @@schema("public")
 }
 
+model brands {
+  brand_id    Int        @id @default(autoincrement())
+  name        String     @unique @db.VarChar(120)
+  slug        String     @unique @db.VarChar(140)
+  logo_url    String?
+  description String?
+  featured    Boolean?   @default(false)
+  sort_order  Int?       @default(0)
+  created_at  DateTime?  @default(now()) @db.Timestamp(6)
+  products    products[]
+
+  @@schema("public")
+}
+
+model collections {
+  collection_id       Int                   @id @default(autoincrement())
+  name                String                @db.VarChar(150)
+  slug                String                @unique @db.VarChar(170)
+  headline            String?
+  description         String?
+  image_url           String?
+  active              Boolean?              @default(true)
+  sort_order          Int?                  @default(0)
+  starts_at           DateTime?             @db.Timestamp(6)
+  expires_at          DateTime?             @db.Timestamp(6)
+  created_at          DateTime?             @default(now()) @db.Timestamp(6)
+  collection_products collection_products[]
+
+  @@schema("public")
+}
+
+model collection_products {
+  id            Int         @id @default(autoincrement())
+  collection_id Int
+  product_id    Int
+  sort_order    Int         @default(0)
+  collections   collections @relation(fields: [collection_id], references: [collection_id], onDelete: Cascade, onUpdate: NoAction)
+  products      products    @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([collection_id, product_id])
+  @@index([product_id])
+  @@schema("public")
+}
+
+model promotions {
+  promotion_id Int       @id @default(autoincrement())
+  headline     String    @db.VarChar(120)
+  subhead      String?
+  fine_print   String?
+  badge        String?   @db.VarChar(40)
+  image_url    String?
+  link_url     String?   @db.VarChar(300)
+  accent       String?   @default("sand") @db.VarChar(20)
+  coupon_code  String?   @db.VarChar(50)
+  active       Boolean?  @default(true)
+  sort_order   Int?      @default(0)
+  starts_at    DateTime? @db.Timestamp(6)
+  expires_at   DateTime? @db.Timestamp(6)
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+
+  @@schema("public")
+}
+
+model landing_sections {
+  section_id Int       @id @default(autoincrement())
+  type       String    @db.VarChar(50)
+  title      String?   @db.VarChar(150)
+  subtitle   String?   @db.VarChar(300)
+  config     Json?
+  position   Int       @default(0)
+  active     Boolean   @default(true)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@schema("public")
+}
+
+model product_images {
+  id         Int       @id @default(autoincrement())
+  product_id Int
+  url        String
+  sort_order Int       @default(0)
+  is_primary Boolean   @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  products   products  @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([product_id])
+  @@schema("public")
+}
+
 model product_questions {
   question_id Int       @id @default(autoincrement())
   product_id  Int?
@@ -111,8 +207,12 @@ model products {
   avg_rating        Decimal?            @default(0) @db.Decimal(3, 2)
   created_at        DateTime?           @default(now()) @db.Timestamp(6)
   image_url         String?
+  brand_id          Int?
+  brands            brands?             @relation(fields: [brand_id], references: [brand_id], onDelete: SetNull, onUpdate: NoAction)
   cart_items_test   cart_items_test[]
+  collection_products collection_products[]
   order_items       order_items[]
+  product_images    product_images[]
   product_questions product_questions[]
   product_reviews   product_reviews[]
   categories        categories?         @relation(fields: [category_id], references: [category_id], onDelete: NoAction, onUpdate: NoAction)

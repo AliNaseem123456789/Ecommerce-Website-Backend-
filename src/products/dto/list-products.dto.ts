@@ -36,4 +36,14 @@ export class ListProductsDto {
   @Type(() => Number)
   @IsNumber()
   maxPrice?: number;
+
+  /** Brand id or slug. */
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  /** Collection slug. */
+  @IsOptional()
+  @IsString()
+  collection?: string;
 }

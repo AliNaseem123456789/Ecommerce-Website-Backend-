@@ -1,5 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -31,6 +34,11 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsInt()
   category_id?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  brand_id?: number;
 }
 
 export class UpdateProductDto {
@@ -58,6 +66,11 @@ export class UpdateProductDto {
   @Type(() => Number)
   @IsInt()
   category_id?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  brand_id?: number;
 }
 
 export class ProductImageDto {
@@ -92,4 +105,37 @@ export class ListOrdersDto {
   @IsOptional()
   @IsString()
   status?: string;
+}
+
+export class ReorderImagesDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  ids: number[];
+}
+
+export class CreateCategoryDto {
+  @IsString()
+  name: string;
+}
+
+export class UpdateCategoryDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  parent_id?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  featured?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  sort_order?: number;
 }
