@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { embedOrder } from '../common/interceptors/serialize.interceptor';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -30,11 +34,44 @@ export class CartService {
     }));
   }
 
+  private async assertStock(productId: number, wanted: number) {
+    const product = await this.prisma.products.findUnique({
+      where: { product_id: productId },
+      select: { stock: true, name: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    const stock = product.stock ?? 0;
+    if (stock <= 0) {
+      throw new BadRequestException(`${product.name} is out of stock`);
+    }
+    if (wanted > stock) {
+      throw new BadRequestException(
+        `Only ${stock} of ${product.name} available`,
+      );
+    }
+  }
+
+  private async ownedItem(userId: string, cartItemId: string) {
+    let id: bigint;
+    try {
+      id = BigInt(cartItemId);
+    } catch {
+      throw new BadRequestException('Invalid cart item id');
+    }
+    const item = await this.prisma.cart_items_test.findFirst({
+      where: { cart_item_id: id, user_id: userId },
+    });
+    // Same error whether it doesn't exist or belongs to someone else.
+    if (!item) throw new NotFoundException('Cart item not found');
+    return item;
+  }
+
   async addItem(userId: string, productId: string | number, quantity: number) {
     const product_id = Number(productId);
     const existing = await this.prisma.cart_items_test.findFirst({
       where: { user_id: userId, product_id },
     });
+    await this.assertStock(product_id, (existing?.quantity ?? 0) + quantity);
 
     if (existing) {
       const updated = await this.prisma.cart_items_test.update({
@@ -59,17 +96,20 @@ export class CartService {
     );
   }
 
-  async updateQty(cartItemId: string, quantity: number) {
+  async updateQty(userId: string, cartItemId: string, quantity: number) {
+    const item = await this.ownedItem(userId, cartItemId);
+    if (item.product_id != null) await this.assertStock(item.product_id, quantity);
     await this.prisma.cart_items_test.update({
-      where: { cart_item_id: BigInt(cartItemId) },
+      where: { cart_item_id: item.cart_item_id },
       data: { quantity },
     });
     return supabaseResult(null, 204, 'No Content');
   }
 
-  async removeItem(cartItemId: string) {
+  async removeItem(userId: string, cartItemId: string) {
+    const item = await this.ownedItem(userId, cartItemId);
     await this.prisma.cart_items_test.delete({
-      where: { cart_item_id: BigInt(cartItemId) },
+      where: { cart_item_id: item.cart_item_id },
     });
     return supabaseResult(null, 204, 'No Content');
   }

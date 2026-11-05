@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AccountService } from './account.service';
+import { OwnerService } from '../auth/owner.service';
 import {
   ChangePasswordDto,
   SetDefaultAddressDto,
@@ -23,7 +24,10 @@ const accountPipe = new ValidationPipe({ whitelist: true, transform: true });
 
 @Controller('/api/v1/account')
 export class AccountController {
-  constructor(private readonly accountService: AccountService) {}
+  constructor(
+    private readonly accountService: AccountService,
+    private readonly owners: OwnerService,
+  ) {}
 
   @Patch('profile')
   @UseGuards(AuthGuard('jwt'))
@@ -50,26 +54,34 @@ export class AccountController {
     return this.accountService.setDefaultAddress(req.user.id, body.addressId);
   }
 
+  @Get('addresses')
+  @UseGuards(AuthGuard('jwt'))
+  getMyAddresses(@Req() req) {
+    return this.accountService.getAddresses(req.user.id);
+  }
+
   @Get('addresses/:userId')
-  async getAddresses(@Param('userId') userId: string) {
-    return this.accountService.getAddresses(userId);
+  async getAddresses(@Req() req, @Param('userId') userId: string) {
+    const owner = await this.owners.requireUser(req, userId);
+    return this.accountService.getAddresses(owner);
   }
 
   @Post('addresses/:userId')
   async saveAddress(
+    @Req() req,
     @Param('userId') userId: string,
     @Body() body: { type: string; formData: any },
   ) {
-    return this.accountService.upsertAddress(userId, body.type, body.formData);
+    const owner = await this.owners.requireUser(req, userId);
+    return this.accountService.upsertAddress(owner, body.type, body.formData);
   }
   @Delete('addresses/:userId/:addressId')
   async deleteAddress(
+    @Req() req,
     @Param('userId') userId: string,
     @Param('addressId') addressId: string,
   ) {
-    console.log(
-      `DELETE request received for userId: ${userId}, addressId: ${addressId}`,
-    );
-    return this.accountService.deleteAddress(userId, addressId);
+    const owner = await this.owners.requireUser(req, userId);
+    return this.accountService.deleteAddress(owner, addressId);
   }
 }

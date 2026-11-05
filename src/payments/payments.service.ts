@@ -177,6 +177,22 @@ export class PaymentsService {
     }
   }
 
+  /** Voids an unpaid intent. Returns false if Stripe says it can no longer be cancelled. */
+  async cancelPaymentIntent(id: string): Promise<boolean> {
+    try {
+      const intent = await this.stripe.paymentIntents.retrieve(id);
+      if (intent.status === 'canceled') return true;
+      if (intent.status === 'succeeded' || intent.status === 'processing') {
+        return false;
+      }
+      await this.stripe.paymentIntents.cancel(id);
+      return true;
+    } catch (error) {
+      console.error('Stripe cancel failed:', (error as Error).message);
+      return false;
+    }
+  }
+
   async handleWebhook(payload: Buffer, signature: string) {
     const secret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!secret) {
@@ -274,6 +290,11 @@ export class PaymentsService {
         },
       });
       if (!order || order.status === 'paid' || order.payment_status === 'paid') {
+        return null;
+      }
+      if (order.status === 'cancelled') {
+        // Cancelled before payment landed: leave it for staff to refund.
+        console.error(`Payment succeeded for cancelled order ${orderId}`);
         return null;
       }
 

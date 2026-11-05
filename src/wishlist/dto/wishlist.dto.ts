@@ -1,9 +1,18 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsInt, IsString, IsUUID } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class ToggleWishlistDto {
+  /** Legacy: must match the caller when given. */
+  @IsOptional()
   @IsString()
-  userId: string;
+  userId?: string;
 
   @Type(() => Number)
   @IsInt()
@@ -11,8 +20,9 @@ export class ToggleWishlistDto {
 }
 
 export class MergeWishlistDto {
+  @IsOptional()
   @IsUUID()
-  userId: string;
+  userId?: string;
 
   @IsArray()
   @ArrayMaxSize(100)

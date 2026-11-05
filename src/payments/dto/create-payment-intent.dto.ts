@@ -45,6 +45,8 @@ export class ShippingAddressDto {
 }
 
 export class CreatePaymentIntentDto {
+  /** Legacy: must match the caller; the server uses the JWT/guest id. */
+  @IsOptional()
   @IsString()
   userId: string;
 
